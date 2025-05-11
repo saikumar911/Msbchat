@@ -1,0 +1,132 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>MSB - Register</title>
+    <script src="https://www.gstatic.com/firebasejs/7.20.0/firebase-app.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/7.20.0/firebase-auth.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/7.20.0/firebase-firestore.js"></script>
+    <style>
+        body { font-family: Arial, sans-serif; max-width: 400px; margin: 0 auto; padding: 20px; }
+        input, button { width: 100%; padding: 10px; margin: 8px 0; box-sizing: border-box; }
+        button { background-color: #4CAF50; color: white; border: none; cursor: pointer; }
+        .google-btn { background-color: #4285F4; margin-top: 15px; }
+        button:hover { opacity: 0.8; }
+        .error { color: red; }
+        .divider { text-align: center; margin: 15px 0; }
+    </style>
+</head>
+<body>
+    <h2>Register for MSB Chat</h2>
+    <div id="error" class="error"></div>
+    <input type="text" id="name" placeholder="Your Name" required>
+    <input type="email" id="email" placeholder="Email" required>
+    <input type="password" id="password" placeholder="Password (min 6 characters)" required>
+    <button id="registerBtn">Register with Email</button>
+
+    <div class="divider">OR</div>
+
+    <button class="google-btn" id="googleBtn">Sign up with Google</button>
+
+    <p>Already have an account? <a href="login.html">Login here</a></p>
+
+    <script>
+        // Firebase configuration
+        const firebaseConfig = {
+            apiKey: "AIzaSyAmT00ZhcM4C-eemno9leJLj1MOMcoNeV8",
+            authDomain: "skchat-ee1cf.firebaseapp.com",
+            databaseURL: "https://skchat-ee1cf-default-rtdb.firebaseio.com",
+            projectId: "skchat-ee1cf",
+            storageBucket: "skchat-ee1cf.firebasestorage.app",
+            messagingSenderId: "588663804980",
+            appId: "1:588663804980:web:229a007e58f95bc35fa661",
+            measurementId: "G-8T4K4YCXRJ"
+        };
+
+        // Initialize Firebase
+        let app;
+        let auth;
+        let db;
+        let provider;
+
+        try {
+            app = firebase.initializeApp(firebaseConfig);
+            auth = firebase.auth();
+            db = firebase.firestore();
+            provider = new firebase.auth.GoogleAuthProvider();
+        } catch (error) {
+            console.error("Firebase initialization error:", error);
+            document.getElementById('error').textContent = "Failed to initialize Firebase. Check your configuration and reload.";
+        }
+
+        document.addEventListener('DOMContentLoaded', function() {
+            document.getElementById('registerBtn').addEventListener('click', registerUser);
+            document.getElementById('googleBtn').addEventListener('click', signInWithGoogle);
+        });
+
+        function registerUser() {
+            const name = document.getElementById('name').value;
+            const email = document.getElementById('email').value;
+            const password = document.getElementById('password').value;
+            const errorElement = document.getElementById('error');
+
+            if (!name || !email || !password) {
+                errorElement.textContent = 'Please fill all fields';
+                return;
+            }
+
+            if (password.length < 6) {
+                errorElement.textContent = 'Password must be at least 6 characters';
+                return;
+            }
+
+            auth.createUserWithEmailAndPassword(email, password)
+                .then((userCredential) => {
+                    return db.collection('users').doc(userCredential.user.uid).set({
+                        name: name,
+                        email: email,
+                        createdAt: firebase.firestore.FieldValue.serverTimestamp(),
+                        friends: []
+                    });
+                })
+                .then(() => {
+                    window.location.href = 'userlist.html';
+                })
+                .catch((error) => {
+                    errorElement.textContent = error.message;
+                });
+        }
+
+        function signInWithGoogle() {
+            auth.signInWithPopup(provider)
+                .then((result) => {
+                    return db.collection('users').doc(result.user.uid).get();
+                })
+                .then((doc) => {
+                    if (!doc.exists) {
+                        const user = auth.currentUser;
+                        return db.collection('users').doc(user.uid).set({
+                            name: user.displayName,
+                            email: user.email,
+                            createdAt: firebase.firestore.FieldValue.serverTimestamp(),
+                            friends: []
+                        });
+                    }
+                })
+                .then(() => {
+                    window.location.href = 'userlist.html';
+                })
+                .catch((error) => {
+                    document.getElementById('error').textContent = error.message;
+                });
+        }
+
+        auth.onAuthStateChanged((user) => {
+            if (user) {
+                window.location.href = 'userlist.html';
+            }
+        });
+    </script>
+</body>
+</html>

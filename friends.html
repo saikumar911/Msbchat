@@ -1,0 +1,151 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>MSB - My Friends</title>
+    <script src="https://www.gstatic.com/firebasejs/7.20.0/firebase-app.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/7.20.0/firebase-auth.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/7.20.0/firebase-firestore.js"></script>
+    <style>
+        body { font-family: Arial, sans-serif; max-width: 800px; margin: 0 auto; padding: 20px; }
+        .friend-card { border: 1px solid #ddd; padding: 15px; margin: 10px 0; border-radius: 5px; display: flex; justify-content: space-between; align-items: center; }
+        button { background-color: #4285F4; color: white; border: none; padding: 8px 15px; cursor: pointer; }
+        button:hover { opacity: 0.8; }
+        #logout { background-color: #f44336; float: right; }
+        #users { background-color: #4CAF50; margin-left: 10px; }
+        .friend-info { flex-grow: 1; }
+        .friend-actions { margin-left: 15px; }
+        .error { color: red; padding: 10px; background: #ffeeee; margin-bottom: 15px; display: none; }
+    </style>
+</head>
+<body>
+    <h2>My Friends</h2>
+    <button id="logout">Logout</button>
+    <button id="users">All Users</button>
+    <div id="error" class="error"></div>
+    <div id="friends-list"></div>
+
+    <script>
+        const firebaseConfig = {
+            apiKey: "AIzaSyAmT00ZhcM4C-eemno9leJLj1MOMcoNeV8",
+            authDomain: "skchat-ee1cf.firebaseapp.com",
+            databaseURL: "https://skchat-ee1cf-default-rtdb.firebaseio.com",
+            projectId: "skchat-ee1cf",
+            storageBucket: "skchat-ee1cf.firebasestorage.app",
+            messagingSenderId: "588663804980",
+            appId: "1:588663804980:web:229a007e58f95bc35fa661",
+            measurementId: "G-8T4K4YCXRJ"
+        };
+
+        let app;
+        let auth;
+        let db;
+        let currentUser = null;
+
+        try {
+            app = firebase.initializeApp(firebaseConfig);
+            auth = firebase.auth();
+            db = firebase.firestore();
+        } catch (error) {
+            console.error("Firebase initialization error:", error);
+            showError("Failed to initialize Firebase. Please refresh the page.");
+        }
+
+        document.addEventListener('DOMContentLoaded', function() {
+            document.getElementById('logout').addEventListener('click', handleLogout);
+            document.getElementById('users').addEventListener('click', goToUsers);
+        });
+
+        auth.onAuthStateChanged((user) => {
+            if (!user) {
+                window.location.href = 'login.html';
+            } else {
+                currentUser = user;
+                loadFriends();
+            }
+        });
+
+        function handleLogout() {
+            auth.signOut().then(() => {
+                window.location.href = 'login.html';
+            }).catch(err => {
+                console.error("Logout Error", err);
+                showError("Logout failed. Please try again.");
+            });
+        }
+
+        function goToUsers() {
+            window.location.href = 'userlist.html';
+        }
+
+        function loadFriends() {
+            db.collection('users').doc(currentUser.uid)
+                .get()
+                .then((doc) => {
+                    if (doc.exists) {
+                        const userData = doc.data();
+                        const friendsList = document.getElementById('friends-list');
+                        friendsList.innerHTML = '';
+
+                        if (userData.friends && userData.friends.length > 0) {
+                            userData.friends.forEach(friendId => {
+                                db.collection('users').doc(friendId)
+                                    .get()
+                                    .then((friendDoc) => {
+                                        if (friendDoc.exists) {
+                                            const friend = friendDoc.data();
+                                            const friendCard = document.createElement('div');
+                                            friendCard.className = 'friend-card';
+                                            
+                                            const chatBtn = document.createElement('button');
+                                            chatBtn.textContent = 'Chat';
+                                            chatBtn.addEventListener('click', () => startChat(friendId, friend.name));
+                                            
+                                            friendCard.innerHTML = `
+                                                <div class="friend-info">
+                                                    <h3>${friend.name}</h3>
+                                                    <p>${friend.email}</p>
+                                                </div>
+                                            `;
+                                            
+                                            const actionsDiv = document.createElement('div');
+                                            actionsDiv.className = 'friend-actions';
+                                            actionsDiv.appendChild(chatBtn);
+                                            friendCard.appendChild(actionsDiv);
+                                            
+                                            friendsList.appendChild(friendCard);
+                                        }
+                                    })
+                                    .catch((error) => {
+                                        console.error("Error loading friend: ", error);
+                                        friendsList.innerHTML += '<p>Error loading friend.</p>';
+                                    });
+                            });
+                        } else {
+                            friendsList.innerHTML = '<p>You have no friends yet. Go to All Users to add some!</p>';
+                        }
+                    }
+                })
+                .catch((error) => {
+                    console.error("Error loading friends: ", error);
+                    showError("Error loading friends. Please refresh the page.");
+                });
+        }
+
+        function startChat(friendId, friendName) {
+            sessionStorage.setItem('currentChatFriend', JSON.stringify({
+                id: friendId,
+                name: friendName
+            }));
+            window.location.href = 'chat.html';
+        }
+
+        function showError(message) {
+            const errorElement = document.getElementById('error');
+            errorElement.textContent = message;
+            errorElement.style.display = 'block';
+        }
+    </script>
+</body>
+</html>

@@ -1,0 +1,160 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>MSB - Users</title>
+    <script src="https://www.gstatic.com/firebasejs/7.20.0/firebase-app.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/7.20.0/firebase-auth.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/7.20.0/firebase-firestore.js"></script>
+    <style>
+        body { font-family: Arial, sans-serif; max-width: 800px; margin: 0 auto; padding: 20px; }
+        .user-card { border: 1px solid #ddd; padding: 15px; margin: 10px 0; border-radius: 5px; }
+        button { background-color: #4285F4; color: white; border: none; padding: 8px 15px; cursor: pointer; }
+        button:hover { opacity: 0.8; }
+        #logout { background-color: #f44336; float: right; }
+        #friends { background-color: #4CAF50; margin-left: 10px; }
+        .loading { text-align: center; padding: 20px; }
+        .error { color: red; padding: 10px; background: #ffeeee; border-radius: 5px; }
+    </style>
+</head>
+<body>
+    <h2>MSB Users</h2>
+    <button id="logout">Logout</button>
+    <button id="friends">My Friends</button>
+
+    <div id="loading" class="loading">Loading users...</div>
+    <div id="error" class="error" style="display:none;"></div>
+    <div id="users-list"></div>
+
+    <script>
+        // Firebase configuration
+        const firebaseConfig = {
+            apiKey: "AIzaSyAmT00ZhcM4C-eemno9leJLj1MOMcoNeV8",
+            authDomain: "skchat-ee1cf.firebaseapp.com",
+            databaseURL: "https://skchat-ee1cf-default-rtdb.firebaseio.com",
+            projectId: "skchat-ee1cf",
+            storageBucket: "skchat-ee1cf.firebasestorage.app",
+            messagingSenderId: "588663804980",
+            appId: "1:588663804980:web:229a007e58f95bc35fa661",
+            measurementId: "G-8T4K4YCXRJ"
+        };
+
+        // Initialize Firebase
+        let app;
+        let auth;
+        let db;
+        let currentUser = null;
+
+        try {
+            app = firebase.initializeApp(firebaseConfig);
+            auth = firebase.auth();
+            db = firebase.firestore();
+        } catch(e) {
+            console.error("Firebase Init Error", e);
+            document.getElementById('error').textContent = "Firebase initialization failed";
+            document.getElementById('error').style.display = 'block';
+        }
+
+        document.addEventListener('DOMContentLoaded', function() {
+            document.getElementById('logout').addEventListener('click', handleLogout);
+            document.getElementById('friends').addEventListener('click', goToFriends);
+        });
+
+        auth.onAuthStateChanged((user) => {
+            if (!user) {
+                window.location.href = 'login.html';
+            } else {
+                currentUser = user;
+                loadUsers();
+            }
+        });
+
+        function handleLogout() {
+            auth.signOut().then(() => {
+                window.location.href = 'login.html';
+            }).catch(err => {
+                console.error("Logout Error", err);
+                showError("Logout failed. Please try again.");
+            });
+        }
+
+        function goToFriends() {
+            window.location.href = 'friends.html';
+        }
+
+        function loadUsers() {
+            const loadingElement = document.getElementById('loading');
+            const errorElement = document.getElementById('error');
+            const usersList = document.getElementById('users-list');
+
+            loadingElement.style.display = 'block';
+            errorElement.style.display = 'none';
+            usersList.innerHTML = '';
+
+            db.collection('users').limit(1).get()
+                .then((snapshot) => {
+                    if (snapshot.empty) {
+                        showError("No users found in database.");
+                        return;
+                    }
+
+                    return db.collection('users')
+                        .where('__name__', '!=', currentUser.uid)
+                        .get();
+                })
+                .then((querySnapshot) => {
+                    loadingElement.style.display = 'none';
+
+                    if (!querySnapshot || querySnapshot.empty) {
+                        usersList.innerHTML = '<p>No other users found.</p>';
+                        return;
+                    }
+
+                    querySnapshot.forEach((doc) => {
+                        const user = doc.data();
+                        const userCard = document.createElement('div');
+                        userCard.className = 'user-card';
+                        
+                        const addFriendBtn = document.createElement('button');
+                        addFriendBtn.textContent = 'Add Friend';
+                        addFriendBtn.addEventListener('click', () => addFriend(doc.id, user.name || 'User'));
+                        
+                        userCard.innerHTML = `
+                            <h3>${user.name || 'No name provided'}</h3>
+                            <p>${user.email || 'No email provided'}</p>
+                        `;
+                        userCard.appendChild(addFriendBtn);
+                        usersList.appendChild(userCard);
+                    });
+                })
+                .catch((error) => {
+                    loadingElement.style.display = 'none';
+                    showError("Error loading users: " + error.message);
+                    console.error("Error loading users:", error);
+                });
+        }
+
+        function addFriend(friendId, friendName) {
+            if (confirm(`Add ${friendName} to your friends list?`)) {
+                db.collection('users').doc(currentUser.uid).update({
+                    friends: firebase.firestore.FieldValue.arrayUnion(friendId)
+                })
+                .then(() => {
+                    alert(`${friendName} added to your friends list!`);
+                })
+                .catch((error) => {
+                    showError("Error adding friend: " + error.message);
+                    console.error("Error adding friend:", error);
+                });
+            }
+        }
+
+        function showError(message) {
+            const errorElement = document.getElementById('error');
+            errorElement.textContent = message;
+            errorElement.style.display = 'block';
+        }
+    </script>
+</body>
+</html>

@@ -1,0 +1,134 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>MSB - Chat</title>
+  <script src="https://www.gstatic.com/firebasejs/7.20.0/firebase-app.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/7.20.0/firebase-auth.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/7.20.0/firebase-firestore.js"></script>
+  <style>
+    body { font-family: Arial, sans-serif; max-width: 800px; margin: 0 auto; padding: 20px; background-color: #f5f5f5; }
+    #chat-container { border: 1px solid #ddd; height: 400px; overflow-y: scroll; margin-bottom: 10px; padding: 15px; background-color: white; border-radius: 8px; }
+    .message { margin: 10px 0; padding: 10px 15px; border-radius: 18px; max-width: 70%; word-wrap: break-word; }
+    .sent { background-color: #DCF8C6; margin-left: auto; }
+    .received { background-color: #ECECEC; margin-right: auto; }
+    #message-form { display: flex; gap: 10px; }
+    #message-input { flex: 1; padding: 10px; border: 1px solid #ddd; border-radius: 4px; }
+    #send-button { padding: 10px 20px; background-color: #4285F4; color: white; border: none; border-radius: 4px; cursor: pointer; }
+    #logout { background-color: #f44336; float: right; padding: 8px 15px; color: white; border: none; border-radius: 4px; cursor: pointer; }
+    .error { color: red; padding: 10px; background: #ffeeee; margin-bottom: 15px; display: none; }
+  </style>
+</head>
+<body>
+  <button id="logout">Logout</button>
+  <h2 id="chat-title">Chat</h2>
+  <div id="error" class="error"></div>
+  <div id="chat-container"></div>
+  <form id="message-form">
+    <input type="text" id="message-input" placeholder="Type your message..." required />
+    <button type="submit" id="send-button">Send</button>
+  </form>
+
+  <script>
+    const firebaseConfig = {
+      apiKey: "AIzaSyAmT00ZhcM4C-eemno9leJLj1MOMcoNeV8",
+      authDomain: "skchat-ee1cf.firebaseapp.com",
+      databaseURL: "https://skchat-ee1cf-default-rtdb.firebaseio.com",
+      projectId: "skchat-ee1cf",
+      storageBucket: "skchat-ee1cf.firebasestorage.app",
+      messagingSenderId: "588663804980",
+      appId: "1:588663804980:web:229a007e58f95bc35fa661"
+    };
+
+    firebase.initializeApp(firebaseConfig);
+    const auth = firebase.auth();
+    const db = firebase.firestore();
+
+    let currentUser = null;
+    let chatPartner = null;
+    let roomId = null;
+
+    const chatContainer = document.getElementById('chat-container');
+    const errorElement = document.getElementById('error');
+
+    auth.onAuthStateChanged(user => {
+      if (!user) {
+        showError("You must be logged in");
+        setTimeout(() => window.location.href = 'login.html', 2000);
+        return;
+      }
+
+      currentUser = user;
+      const partnerData = JSON.parse(sessionStorage.getItem('currentChatFriend'));
+
+      if (!partnerData) {
+        showError("No chat partner selected");
+        setTimeout(() => window.location.href = 'friends.html', 2000);
+        return;
+      }
+
+      chatPartner = partnerData;
+      roomId = [currentUser.uid, chatPartner.id].sort().join('_');
+      document.getElementById('chat-title').textContent = `Chat with ${partnerData.name}`;
+
+      loadMessages();
+      listenForNewMessages();
+    });
+
+    document.getElementById('logout').addEventListener('click', () => {
+      auth.signOut().then(() => window.location.href = 'login.html');
+    });
+
+    document.getElementById('message-form').addEventListener('submit', (e) => {
+      e.preventDefault();
+      const input = document.getElementById('message-input');
+      const text = input.value.trim();
+      if (!text) return;
+
+      db.collection('chats').doc(roomId).collection('messages').add({
+        senderId: currentUser.uid,
+        receiverId: chatPartner.id,
+        text: text,
+        timestamp: firebase.firestore.FieldValue.serverTimestamp()
+      });
+
+      input.value = '';
+    });
+
+    function loadMessages() {
+      db.collection('chats').doc(roomId).collection('messages')
+        .orderBy('timestamp')
+        .get()
+        .then(snapshot => {
+          snapshot.forEach(doc => displayMessage(doc.data()));
+        });
+    }
+
+    function listenForNewMessages() {
+      db.collection('chats').doc(roomId).collection('messages')
+        .orderBy('timestamp')
+        .onSnapshot(snapshot => {
+          snapshot.docChanges().forEach(change => {
+            if (change.type === 'added') {
+              displayMessage(change.doc.data());
+            }
+          });
+        });
+    }
+
+    function displayMessage(data) {
+      const div = document.createElement('div');
+      div.className = 'message ' + (data.senderId === currentUser.uid ? 'sent' : 'received');
+      div.textContent = data.text;
+      chatContainer.appendChild(div);
+      chatContainer.scrollTop = chatContainer.scrollHeight;
+    }
+
+    function showError(message) {
+      errorElement.textContent = message;
+      errorElement.style.display = 'block';
+    }
+  </script>
+</body>
+</html>
